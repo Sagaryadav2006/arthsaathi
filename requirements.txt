@@ -1,0 +1,14 @@
+streamlit
+langchain
+langchain-community
+langchain-core
+langchain-google-genai
+langchain-ibm
+faiss-cpu
+sentence-transformers
+ddgs
+beautifulsoup4
+python-dotenv
+pandas
+PyPDF2
+streamlit-mic-recorder
