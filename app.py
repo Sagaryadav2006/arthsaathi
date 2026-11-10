@@ -533,7 +533,7 @@ def get_vector_store() -> FAISS:
     except Exception as e:
         logger.warning(f"Local embeddings load attempt failed: {e}. Trying standard initialization...")
         embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_name="./local_model",
             model_kwargs={"device": "cpu"}
         )
 
