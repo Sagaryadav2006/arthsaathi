@@ -74,6 +74,31 @@ except ImportError:
 # ------------------------------------------------------------------------------
 load_dotenv()
 
+def get_serper_results(query):
+    import requests, json
+    import streamlit as st
+    url = "https://google.serper.dev/search"
+    payload = json.dumps({"q": query, "num": 5})
+    # Safely fetch key, fallback to empty string if missing during local dev
+    try:
+        api_key = st.secrets.get("SERPER_API_KEY", "") or os.environ.get("SERPER_API_KEY", "")
+    except Exception:
+        api_key = os.environ.get("SERPER_API_KEY", "")
+    headers = {'X-API-KEY': api_key, 'Content-Type': 'application/json'}
+    
+    try:
+        response = requests.request("POST", url, headers=headers, data=payload)
+        response.raise_for_status()
+        results = response.json()
+        snippets = [item.get('snippet', '') for item in results.get('organic', [])]
+        return " ".join(snippets)
+    except Exception as e:
+        try:
+            st.error(f"SERP API Error: {e}")
+        except Exception:
+            pass
+        return ""
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -1301,32 +1326,9 @@ def fetch_live_schemes(
     """
     need_str = specific_need.strip() if specific_need else "financial safety"
     # Keyword-optimized query to prevent search engines from returning generic portals
-    query = f"Government of India {need_str} scheme {occupation} official site:myscheme.gov.in OR site:india.gov.in"
+    search_query = f"Government of India {need_str} scheme {occupation} official site:myscheme.gov.in OR site:india.gov.in"
 
-    raw_search_results = ""
-    # Attempt 1: Native DDGS (New Package)
-    try:
-        from ddgs import DDGS
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
-            if results:
-                raw_search_results = " ".join([res.get("body", "") for res in results])
-    except Exception as search_err:
-        logger.warning(f"Native DDGS failed or rate-limited: {search_err}. Engaging Bing fallback.")
-
-    # Attempt 2: Bing Urllib Scrape Fallback (Anti-Gravity)
-    if not raw_search_results:
-        try:
-            url = "https://www.bing.com/search?q=" + urllib.parse.quote(query)
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-            html = urllib.request.urlopen(req, timeout=5).read()
-            soup = BeautifulSoup(html, 'html.parser')
-            # Extract text from standard search result descriptions
-            snippets = soup.find_all('div', class_='b_caption')
-            if snippets:
-                raw_search_results = " ".join([s.get_text() for s in snippets[:3]])
-        except Exception as bing_err:
-            logger.error(f"Bing fallback search failed: {bing_err}")
+    raw_search_results = get_serper_results(search_query)
 
     # TASK 2 (Phase 13): Eliminate Silent Fallbacks
     if not raw_search_results or "no good duckduckgo search" in raw_search_results.lower():
@@ -2167,45 +2169,7 @@ with tab_guidelines:
             st.warning("⚠️ Please enter a topic or keyword to search official guidelines.")
         else:
             with st.spinner("Searching official regulatory portals (RBI, SEBI, NPCI)..."):
-                query = f"{search_query} official guidelines master circular Reserve Bank of India SEBI NPCI"
-                raw_search_results = ""
-                valid_domains = ["rbi.org.in", "sebi.gov.in", "npci.org.in", "cybercrime.gov.in", "pib.gov.in", "india.gov.in", "myscheme.gov.in"]
-                validated_snippets = []
-
-                # Attempt 1: Native DDGS (New Package)
-                try:
-                    from ddgs import DDGS
-                    with DDGS() as ddgs:
-                        results = list(ddgs.text(query, max_results=7))
-                        for res in results:
-                            url = res.get("href", "").lower()
-                            if any(domain in url for domain in valid_domains):
-                                validated_snippets.append(res.get("body", ""))
-                except Exception as search_err:
-                    logger.warning(f"Native DDGS failed or rate-limited: {search_err}. Engaging Bing fallback.")
-
-                # Attempt 2: Bing Urllib Scrape Fallback (Anti-Gravity)
-                if not validated_snippets:
-                    try:
-                        url_search = "https://www.bing.com/search?q=" + urllib.parse.quote(query)
-                        req = urllib.request.Request(url_search, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                        html = urllib.request.urlopen(req, timeout=5).read()
-                        soup = BeautifulSoup(html, 'html.parser')
-                        
-                        results = soup.find_all('li', class_='b_algo')
-                        for res in results:
-                            link_tag = res.find('a')
-                            if link_tag:
-                                link = link_tag.get('href', '').lower()
-                                if any(domain in link for domain in valid_domains):
-                                    snippet = res.find('div', class_='b_caption')
-                                    if snippet:
-                                        validated_snippets.append(snippet.get_text())
-                    except Exception as bing_err:
-                        logger.error(f"Bing fallback search failed: {bing_err}")
-
-                if validated_snippets:
-                    raw_search_results = " ".join(validated_snippets[:3])
+                raw_search_results = get_serper_results(search_query)
 
                 if raw_search_results:
                     import re
