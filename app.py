@@ -2169,8 +2169,9 @@ with tab_guidelines:
             st.warning("⚠️ Please enter a topic or keyword to search official guidelines.")
         else:
             with st.spinner("Searching official regulatory portals (RBI, SEBI, NPCI)..."):
-                raw_search_results = get_serper_results(search_query)
-
+                # Force Google Search to only index official Indian regulatory portals
+                strict_regulatory_query = f"{search_query} site:rbi.org.in OR site:sebi.gov.in OR site:npci.org.in OR site:ncfe.org.in OR site:pib.gov.in"
+                raw_search_results = get_serper_results(strict_regulatory_query)
                 if raw_search_results:
                     import re
                     
